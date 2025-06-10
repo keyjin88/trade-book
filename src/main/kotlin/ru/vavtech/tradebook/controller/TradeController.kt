@@ -67,6 +67,16 @@ class TradeController(private val tradeService: TradeService) {
         }
     }
     
+    @DeleteMapping("/{id}")
+    fun deleteTrade(@PathVariable id: String): ResponseEntity<Void> {
+        val deleted = tradeService.deleteTrade(id)
+        return if (deleted) {
+            ResponseEntity.ok().build()
+        } else {
+            ResponseEntity.notFound().build()
+        }
+    }
+    
     @GetMapping("/summary")
     fun getTradesSummary(): Map<String, Any> {
         return tradeService.getTradesSummary()

@@ -99,6 +99,14 @@
         button.cancel-btn:hover {
             background-color: #7f8c8d;
         }
+        button.delete-btn {
+            background-color: #e74c3c;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        button.delete-btn:hover {
+            background-color: #c0392b;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -122,6 +130,7 @@
         .status-closed { color: #27ae60; }
         .profit-positive { color: #27ae60; }
         .profit-negative { color: #e74c3c; }
+        .commission { color: #e74c3c; }
         .summary-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -187,20 +196,8 @@
                 <p>Всего сделок</p>
             </div>
             <div class="stat-card">
-                <h3 th:text="${summary.openTrades}">0</h3>
-                <p>Открытых</p>
-            </div>
-            <div class="stat-card">
-                <h3 th:text="${summary.closedTrades}">0</h3>
-                <p>Закрытых</p>
-            </div>
-            <div class="stat-card">
-                <h3 th:text="${#numbers.formatDecimal(summary.totalVolume, 1, 2)}">0.00</h3>
-                <p>Общий объем</p>
-            </div>
-            <div class="stat-card">
-                <h3 th:text="${#numbers.formatDecimal(summary.totalCommissions, 1, 2)}">0.00</h3>
-                <p>Комиссии</p>
+                <h3 th:text="${#numbers.formatDecimal(summary.profitablePercentage, 1, 1)} + '%'">0.0%</h3>
+                <p>Прибыльных сделок</p>
             </div>
             <div class="stat-card">
                 <h3 th:text="${#numbers.formatDecimal(summary.totalProfit, 1, 2)}" 
@@ -235,7 +232,7 @@
                 
                 <div class="form-group">
                     <label for="entryPrice">Цена входа:</label>
-                    <input type="number" id="entryPrice" name="entryPrice" step="0.01" required placeholder="0.00">
+                    <input type="number" id="entryPrice" name="entryPrice" step="0.00001" required placeholder="1.35176">
                 </div>
             </div>
             
@@ -247,17 +244,17 @@
                 
                 <div class="form-group">
                     <label for="takeProfit">Take Profit:</label>
-                    <input type="number" id="takeProfit" name="takeProfit" step="0.01" placeholder="0.00">
+                    <input type="number" id="takeProfit" name="takeProfit" step="0.00001" placeholder="1.35200">
                 </div>
                 
                 <div class="form-group">
                     <label for="stopLoss">Stop Loss:</label>
-                    <input type="number" id="stopLoss" name="stopLoss" step="0.01" placeholder="0.00">
+                    <input type="number" id="stopLoss" name="stopLoss" step="0.00001" placeholder="1.35100">
                 </div>
                 
                 <div class="form-group">
                     <label for="commission">Комиссия:</label>
-                    <input type="number" id="commission" name="commission" step="0.01" value="0" placeholder="0.00">
+                    <input type="number" id="commission" name="commission" step="0.01" value="0" placeholder="-3.45">
                 </div>
             </div>
             
@@ -300,19 +297,20 @@
                         <td th:text="${trade.symbol}"></td>
                         <td th:text="${trade.side}" th:class="${trade.side == T(ru.vavtech.tradebook.model.TradeSide).BUY ? 'buy' : 'sell'}"></td>
                         <td th:text="${#numbers.formatDecimal(trade.quantity, 1, 2)}"></td>
-                        <td th:text="${#numbers.formatDecimal(trade.entryPrice, 1, 2)}"></td>
+                        <td th:text="${#numbers.formatDecimal(trade.entryPrice, 1, 5)}"></td>
                         <td th:text="${#temporals.format(trade.entryTime, 'dd.MM.yy HH:mm')}"></td>
-                        <td th:text="${trade.exitPrice != null ? #numbers.formatDecimal(trade.exitPrice, 1, 2) : '-'}"></td>
+                        <td th:text="${trade.exitPrice != null ? #numbers.formatDecimal(trade.exitPrice, 1, 5) : '-'}"></td>
                         <td th:text="${trade.exitTime != null ? #temporals.format(trade.exitTime, 'dd.MM.yy HH:mm') : '-'}"></td>
-                        <td th:text="${trade.takeProfit != null ? #numbers.formatDecimal(trade.takeProfit, 1, 2) : '-'}"></td>
-                        <td th:text="${trade.stopLoss != null ? #numbers.formatDecimal(trade.stopLoss, 1, 2) : '-'}"></td>
-                        <td th:text="${#numbers.formatDecimal(trade.commission, 1, 2)}"></td>
+                        <td th:text="${trade.takeProfit != null ? #numbers.formatDecimal(trade.takeProfit, 1, 5) : '-'}"></td>
+                        <td th:text="${trade.stopLoss != null ? #numbers.formatDecimal(trade.stopLoss, 1, 5) : '-'}"></td>
+                        <td th:text="${#numbers.formatDecimal(trade.commission, 1, 2)}" class="commission"></td>
                         <td th:text="${trade.profit != null ? #numbers.formatDecimal(trade.profit, 1, 2) : '-'}"
                             th:class="${trade.profit != null and trade.profit >= 0 ? 'profit-positive' : 'profit-negative'}"></td>
                         <td th:text="${trade.status}" th:class="${trade.status == T(ru.vavtech.tradebook.model.TradeStatus).OPEN ? 'status-open' : 'status-closed'}"></td>
                         <td th:text="${trade.notes}"></td>
                         <td>
                             <button class="edit-btn" th:data-trade-id="${trade.id}">Редактировать</button>
+                            <button class="delete-btn" th:data-trade-id="${trade.id}">Удалить</button>
                         </td>
                     </tr>
                 </tbody>
@@ -331,7 +329,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="editExitPrice">Цена выхода:</label>
-                        <input type="number" id="editExitPrice" step="0.01" placeholder="0.00">
+                        <input type="number" id="editExitPrice" step="0.00001" placeholder="1.35176">
                     </div>
                     
                     <div class="form-group">
@@ -343,19 +341,19 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="editTakeProfit">Take Profit:</label>
-                        <input type="number" id="editTakeProfit" step="0.01" placeholder="0.00">
+                        <input type="number" id="editTakeProfit" step="0.00001" placeholder="1.35200">
                     </div>
                     
                     <div class="form-group">
                         <label for="editStopLoss">Stop Loss:</label>
-                        <input type="number" id="editStopLoss" step="0.01" placeholder="0.00">
+                        <input type="number" id="editStopLoss" step="0.00001" placeholder="1.35100">
                     </div>
                 </div>
                 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="editCommission">Комиссия:</label>
-                        <input type="number" id="editCommission" step="0.01" placeholder="0.00">
+                        <input type="number" id="editCommission" step="0.01" placeholder="-3.45">
                     </div>
                     
                     <div class="form-group">
@@ -432,11 +430,14 @@
             }
         });
 
-        // Обработка кликов по кнопкам редактирования
+        // Обработка кликов по кнопкам редактирования и удаления
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('edit-btn')) {
                 const tradeId = e.target.getAttribute('data-trade-id');
                 editTrade(tradeId);
+            } else if (e.target.classList.contains('delete-btn')) {
+                const tradeId = e.target.getAttribute('data-trade-id');
+                deleteTrade(tradeId);
             }
         });
 
@@ -461,6 +462,26 @@
                     console.error('Error:', error);
                     alert('Ошибка при загрузке данных сделки');
                 });
+        }
+
+        function deleteTrade(tradeId) {
+            if (confirm('Вы уверены, что хотите удалить эту сделку? Это действие нельзя отменить.')) {
+                fetch(`/api/trades/${tradeId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        alert('Сделка успешно удалена!');
+                        location.reload();
+                    } else {
+                        alert('Ошибка при удалении сделки');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ошибка при отправке запроса');
+                });
+            }
         }
 
         function closeEditModal() {

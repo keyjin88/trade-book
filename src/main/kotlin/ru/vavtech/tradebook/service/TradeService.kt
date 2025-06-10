@@ -76,19 +76,33 @@ class TradeService {
     fun getTradesSummary(): Map<String, Any> {
         val trades = getAllTrades()
         val totalTrades = trades.size
-        val openTrades = trades.count { it.status == ru.vavtech.tradebook.model.TradeStatus.OPEN }
-        val closedTrades = trades.count { it.status == ru.vavtech.tradebook.model.TradeStatus.CLOSED }
-        val totalVolume = trades.sumOf { it.quantity * it.entryPrice }
-        val totalCommissions = trades.sumOf { it.commission }
-        val totalProfit = trades.mapNotNull { it.profit }.sumOf { it }
+        val tradesWithProfit = trades.filter { it.profit != null }
+        val profitableTrades = tradesWithProfit.count { it.profit!! > BigDecimal.ZERO }
+        val profitablePercentage = if (tradesWithProfit.isNotEmpty()) {
+            (profitableTrades.toDouble() / tradesWithProfit.size * 100)
+        } else {
+            0.0
+        }
+        val grossProfit = trades.mapNotNull { it.profit }.sumOf { it }
+        val totalCommissions = trades.sumOf { it.commission.abs() }
+        // Всегда вычитаем комиссии из прибыли, независимо от того как их ввели
+        val netProfit = grossProfit - totalCommissions
         
         return mapOf(
             "totalTrades" to totalTrades,
-            "openTrades" to openTrades,
-            "closedTrades" to closedTrades,
-            "totalVolume" to totalVolume,
-            "totalCommissions" to totalCommissions,
-            "totalProfit" to totalProfit
+            "profitablePercentage" to profitablePercentage,
+            "totalProfit" to netProfit
         )
+    }
+    
+    fun deleteTrade(id: String): Boolean {
+        val trades = getAllTrades().toMutableList()
+        val tradeIndex = trades.indexOfFirst { it.id == id }
+        
+        if (tradeIndex == -1) return false
+        
+        trades.removeAt(tradeIndex)
+        saveTrades(trades)
+        return true
     }
 } 
