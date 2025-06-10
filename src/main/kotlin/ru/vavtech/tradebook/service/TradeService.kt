@@ -7,6 +7,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import org.springframework.stereotype.Service
 import ru.vavtech.tradebook.model.Trade
 import java.io.File
+import java.math.BigDecimal
 import java.time.LocalDateTime
 import java.util.*
 
@@ -34,11 +35,38 @@ class TradeService {
         val trades = getAllTrades().toMutableList()
         val newTrade = trade.copy(
             id = UUID.randomUUID().toString(),
-            timestamp = LocalDateTime.now()
+            entryTime = trade.entryTime ?: LocalDateTime.now()
         )
         trades.add(newTrade)
         saveTrades(trades)
         return newTrade
+    }
+    
+    fun updateTrade(id: String, updates: Map<String, Any?>): Trade? {
+        val trades = getAllTrades().toMutableList()
+        val tradeIndex = trades.indexOfFirst { it.id == id }
+        
+        if (tradeIndex == -1) return null
+        
+        val existingTrade = trades[tradeIndex]
+        val updatedTrade = existingTrade.copy(
+            exitPrice = updates["exitPrice"] as? BigDecimal ?: existingTrade.exitPrice,
+            exitTime = updates["exitTime"] as? LocalDateTime ?: existingTrade.exitTime,
+            takeProfit = updates["takeProfit"] as? BigDecimal ?: existingTrade.takeProfit,
+            stopLoss = updates["stopLoss"] as? BigDecimal ?: existingTrade.stopLoss,
+            commission = updates["commission"] as? BigDecimal ?: existingTrade.commission,
+            profit = updates["profit"] as? BigDecimal ?: existingTrade.profit,
+            status = updates["status"] as? ru.vavtech.tradebook.model.TradeStatus ?: existingTrade.status,
+            notes = updates["notes"] as? String ?: existingTrade.notes
+        )
+        
+        trades[tradeIndex] = updatedTrade
+        saveTrades(trades)
+        return updatedTrade
+    }
+    
+    fun getTrade(id: String): Trade? {
+        return getAllTrades().find { it.id == id }
     }
     
     private fun saveTrades(trades: List<Trade>) {
@@ -48,13 +76,33 @@ class TradeService {
     fun getTradesSummary(): Map<String, Any> {
         val trades = getAllTrades()
         val totalTrades = trades.size
-        val totalVolume = trades.sumOf { it.quantity * it.price }
-        val totalCommissions = trades.sumOf { it.commission }
+        val tradesWithProfit = trades.filter { it.profit != null }
+        val profitableTrades = tradesWithProfit.count { it.profit!! > BigDecimal.ZERO }
+        val profitablePercentage = if (tradesWithProfit.isNotEmpty()) {
+            (profitableTrades.toDouble() / tradesWithProfit.size * 100)
+        } else {
+            0.0
+        }
+        val grossProfit = trades.mapNotNull { it.profit }.sumOf { it }
+        val totalCommissions = trades.sumOf { it.commission.abs() }
+        // Всегда вычитаем комиссии из прибыли, независимо от того как их ввели
+        val netProfit = grossProfit - totalCommissions
         
         return mapOf(
             "totalTrades" to totalTrades,
-            "totalVolume" to totalVolume,
-            "totalCommissions" to totalCommissions
+            "profitablePercentage" to profitablePercentage,
+            "totalProfit" to netProfit
         )
+    }
+    
+    fun deleteTrade(id: String): Boolean {
+        val trades = getAllTrades().toMutableList()
+        val tradeIndex = trades.indexOfFirst { it.id == id }
+        
+        if (tradeIndex == -1) return false
+        
+        trades.removeAt(tradeIndex)
+        saveTrades(trades)
+        return true
     }
 } 

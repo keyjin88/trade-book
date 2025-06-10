@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
@@ -42,6 +42,11 @@
         .form-group {
             margin-bottom: 15px;
         }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
         label {
             display: block;
             margin-bottom: 5px;
@@ -54,6 +59,9 @@
             border-radius: 4px;
             box-sizing: border-box;
         }
+        input[type="datetime-local"] {
+            font-size: 14px;
+        }
         button {
             background-color: #3498db;
             color: white;
@@ -62,30 +70,71 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
+            margin-right: 10px;
         }
         button:hover {
             background-color: #2980b9;
+        }
+        button.edit-btn {
+            background-color: #f39c12;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        button.edit-btn:hover {
+            background-color: #e67e22;
+        }
+        button.save-btn {
+            background-color: #27ae60;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        button.save-btn:hover {
+            background-color: #229954;
+        }
+        button.cancel-btn {
+            background-color: #95a5a6;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        button.cancel-btn:hover {
+            background-color: #7f8c8d;
+        }
+        button.delete-btn {
+            background-color: #e74c3c;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        button.delete-btn:hover {
+            background-color: #c0392b;
         }
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            font-size: 12px;
         }
         th, td {
-            padding: 12px;
+            padding: 8px;
             text-align: left;
             border-bottom: 1px solid #ddd;
         }
         th {
             background-color: #f8f9fa;
             font-weight: bold;
+            position: sticky;
+            top: 0;
         }
         .buy { color: #27ae60; }
         .sell { color: #e74c3c; }
+        .status-open { color: #f39c12; }
+        .status-closed { color: #27ae60; }
+        .profit-positive { color: #27ae60; }
+        .profit-negative { color: #e74c3c; }
+        .commission { color: #e74c3c; }
         .summary-stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
         }
         .stat-card {
             text-align: center;
@@ -93,12 +142,50 @@
             background-color: #ecf0f1;
             border-radius: 4px;
         }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: black;
+        }
+        .edit-input {
+            width: 100px;
+            padding: 2px 4px;
+            font-size: 11px;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>📈 Дневник торговых сделок</h1>
-        <p>Управление торговыми операциями</p>
+        <p>Расширенное управление торговыми операциями</p>
     </div>
 
     <div class="summary">
@@ -109,12 +196,13 @@
                 <p>Всего сделок</p>
             </div>
             <div class="stat-card">
-                <h3 th:text="${#numbers.formatDecimal(summary.totalVolume, 1, 2)}">0.00</h3>
-                <p>Общий объем</p>
+                <h3 th:text="${#numbers.formatDecimal(summary.profitablePercentage, 1, 1)} + '%'">0.0%</h3>
+                <p>Прибыльных сделок</p>
             </div>
             <div class="stat-card">
-                <h3 th:text="${#numbers.formatDecimal(summary.totalCommissions, 1, 2)}">0.00</h3>
-                <p>Общие комиссии</p>
+                <h3 th:text="${#numbers.formatDecimal(summary.totalProfit, 1, 2)}" 
+                    th:class="${summary.totalProfit != null and summary.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}">0.00</h3>
+                <p>Общая прибыль</p>
             </div>
         </div>
     </div>
@@ -122,38 +210,57 @@
     <div class="form-container">
         <h2>Добавить новую сделку</h2>
         <form id="tradeForm">
-            <div class="form-group">
-                <label for="symbol">Символ инструмента:</label>
-                <input type="text" id="symbol" name="symbol" required placeholder="Например: AAPL, MSFT">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="symbol">Символ:</label>
+                    <input type="text" id="symbol" name="symbol" required placeholder="AAPL, MSFT...">
+                </div>
+                
+                <div class="form-group">
+                    <label for="side">Тип операции:</label>
+                    <select id="side" name="side" required>
+                        <option value="">Выберите тип</option>
+                        <option value="BUY">Покупка (BUY)</option>
+                        <option value="SELL">Продажа (SELL)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="quantity">Количество:</label>
+                    <input type="number" id="quantity" name="quantity" step="0.01" required placeholder="0.00">
+                </div>
+                
+                <div class="form-group">
+                    <label for="entryPrice">Цена входа:</label>
+                    <input type="number" id="entryPrice" name="entryPrice" step="0.00001" required placeholder="1.35176">
+                </div>
             </div>
             
-            <div class="form-group">
-                <label for="side">Тип операции:</label>
-                <select id="side" name="side" required>
-                    <option value="">Выберите тип</option>
-                    <option value="BUY">Покупка (BUY)</option>
-                    <option value="SELL">Продажа (SELL)</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label for="quantity">Количество:</label>
-                <input type="number" id="quantity" name="quantity" step="0.01" required placeholder="0.00">
-            </div>
-            
-            <div class="form-group">
-                <label for="price">Цена:</label>
-                <input type="number" id="price" name="price" step="0.01" required placeholder="0.00">
-            </div>
-            
-            <div class="form-group">
-                <label for="commission">Комиссия:</label>
-                <input type="number" id="commission" name="commission" step="0.01" value="0" placeholder="0.00">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="entryTime">Время входа:</label>
+                    <input type="datetime-local" id="entryTime" name="entryTime">
+                </div>
+                
+                <div class="form-group">
+                    <label for="takeProfit">Take Profit:</label>
+                    <input type="number" id="takeProfit" name="takeProfit" step="0.00001" placeholder="1.35200">
+                </div>
+                
+                <div class="form-group">
+                    <label for="stopLoss">Stop Loss:</label>
+                    <input type="number" id="stopLoss" name="stopLoss" step="0.00001" placeholder="1.35100">
+                </div>
+                
+                <div class="form-group">
+                    <label for="commission">Комиссия:</label>
+                    <input type="number" id="commission" name="commission" step="0.01" value="0" placeholder="-3.45">
+                </div>
             </div>
             
             <div class="form-group">
                 <label for="notes">Заметки:</label>
-                <textarea id="notes" name="notes" rows="3" placeholder="Дополнительная информация о сделке"></textarea>
+                <textarea id="notes" name="notes" rows="2" placeholder="Дополнительная информация о сделке"></textarea>
             </div>
             
             <button type="submit">Добавить сделку</button>
@@ -165,37 +272,127 @@
         <div th:if="${trades.isEmpty()}">
             <p>Сделки пока не добавлены.</p>
         </div>
-        <div th:unless="${trades.isEmpty()}">
-            <table>
+        <div th:unless="${trades.isEmpty()}" class="table-container">
+            <table id="tradesTable">
                 <thead>
                     <tr>
-                        <th>Время</th>
                         <th>Символ</th>
                         <th>Тип</th>
                         <th>Количество</th>
-                        <th>Цена</th>
-                        <th>Сумма</th>
+                        <th>Вход</th>
+                        <th>Время входа</th>
+                        <th>Выход</th>
+                        <th>Время выхода</th>
+                        <th>Take Profit</th>
+                        <th>Stop Loss</th>
                         <th>Комиссия</th>
+                        <th>Прибыль</th>
+                        <th>Статус</th>
                         <th>Заметки</th>
+                        <th>Действия</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr th:each="trade : ${trades}">
-                        <td th:text="${#temporals.format(trade.timestamp, 'dd.MM.yyyy HH:mm')}"></td>
+                    <tr th:each="trade : ${trades}" th:data-trade-id="${trade.id}">
                         <td th:text="${trade.symbol}"></td>
                         <td th:text="${trade.side}" th:class="${trade.side == T(ru.vavtech.tradebook.model.TradeSide).BUY ? 'buy' : 'sell'}"></td>
                         <td th:text="${#numbers.formatDecimal(trade.quantity, 1, 2)}"></td>
-                        <td th:text="${#numbers.formatDecimal(trade.price, 1, 2)}"></td>
-                        <td th:text="${#numbers.formatDecimal(trade.quantity * trade.price, 1, 2)}"></td>
-                        <td th:text="${#numbers.formatDecimal(trade.commission, 1, 2)}"></td>
+                        <td th:text="${#numbers.formatDecimal(trade.entryPrice, 1, 5)}"></td>
+                        <td th:text="${#temporals.format(trade.entryTime, 'dd.MM.yy HH:mm')}"></td>
+                        <td th:text="${trade.exitPrice != null ? #numbers.formatDecimal(trade.exitPrice, 1, 5) : '-'}"></td>
+                        <td th:text="${trade.exitTime != null ? #temporals.format(trade.exitTime, 'dd.MM.yy HH:mm') : '-'}"></td>
+                        <td th:text="${trade.takeProfit != null ? #numbers.formatDecimal(trade.takeProfit, 1, 5) : '-'}"></td>
+                        <td th:text="${trade.stopLoss != null ? #numbers.formatDecimal(trade.stopLoss, 1, 5) : '-'}"></td>
+                        <td th:text="${#numbers.formatDecimal(trade.commission, 1, 2)}" class="commission"></td>
+                        <td th:text="${trade.profit != null ? #numbers.formatDecimal(trade.profit, 1, 2) : '-'}"
+                            th:class="${trade.profit != null and trade.profit >= 0 ? 'profit-positive' : 'profit-negative'}"></td>
+                        <td th:text="${trade.status}" th:class="${trade.status == T(ru.vavtech.tradebook.model.TradeStatus).OPEN ? 'status-open' : 'status-closed'}"></td>
                         <td th:text="${trade.notes}"></td>
+                        <td>
+                            <button class="edit-btn" th:data-trade-id="${trade.id}">Редактировать</button>
+                            <button class="delete-btn" th:data-trade-id="${trade.id}">Удалить</button>
+                        </td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
 
+    <!-- Modal для редактирования -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Редактировать сделку</h2>
+            <form id="editForm">
+                <input type="hidden" id="editTradeId">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editExitPrice">Цена выхода:</label>
+                        <input type="number" id="editExitPrice" step="0.00001" placeholder="1.35176">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editExitTime">Время выхода:</label>
+                        <input type="datetime-local" id="editExitTime">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editTakeProfit">Take Profit:</label>
+                        <input type="number" id="editTakeProfit" step="0.00001" placeholder="1.35200">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editStopLoss">Stop Loss:</label>
+                        <input type="number" id="editStopLoss" step="0.00001" placeholder="1.35100">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editCommission">Комиссия:</label>
+                        <input type="number" id="editCommission" step="0.01" placeholder="-3.45">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editProfit">Прибыль:</label>
+                        <input type="number" id="editProfit" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editStatus">Статус:</label>
+                        <select id="editStatus">
+                            <option value="">Не менять</option>
+                            <option value="OPEN">Открыта</option>
+                            <option value="CLOSED">Закрыта</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editNotes">Заметки:</label>
+                    <textarea id="editNotes" rows="3"></textarea>
+                </div>
+                
+                <button type="submit" class="save-btn">Сохранить</button>
+                <button type="button" class="cancel-btn" onclick="closeEditModal()">Отмена</button>
+            </form>
+        </div>
+    </div>
+
     <script>
+        // Устанавливаем текущее время по умолчанию
+        document.addEventListener('DOMContentLoaded', function() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('entryTime').value = now.toISOString().slice(0, 16);
+        });
+
+        // Добавление новой сделки
         document.getElementById('tradeForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -204,7 +401,10 @@
                 symbol: formData.get('symbol'),
                 side: formData.get('side'),
                 quantity: parseFloat(formData.get('quantity')),
-                price: parseFloat(formData.get('price')),
+                entryPrice: parseFloat(formData.get('entryPrice')),
+                entryTime: formData.get('entryTime') || null,
+                takeProfit: formData.get('takeProfit') ? parseFloat(formData.get('takeProfit')) : null,
+                stopLoss: formData.get('stopLoss') ? parseFloat(formData.get('stopLoss')) : null,
                 commission: parseFloat(formData.get('commission') || 0),
                 notes: formData.get('notes') || ''
             };
@@ -223,6 +423,127 @@
                     location.reload();
                 } else {
                     alert('Ошибка при добавлении сделки');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ошибка при отправке данных');
+            }
+        });
+
+        // Обработка кликов по кнопкам редактирования и удаления
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('edit-btn')) {
+                const tradeId = e.target.getAttribute('data-trade-id');
+                editTrade(tradeId);
+            } else if (e.target.classList.contains('delete-btn')) {
+                const tradeId = e.target.getAttribute('data-trade-id');
+                deleteTrade(tradeId);
+            }
+        });
+
+        // Функции для редактирования
+        function editTrade(tradeId) {
+            fetch(`/api/trades/${tradeId}`)
+                .then(response => response.json())
+                .then(trade => {
+                    document.getElementById('editTradeId').value = trade.id;
+                    document.getElementById('editExitPrice').value = trade.exitPrice || '';
+                    document.getElementById('editExitTime').value = trade.exitTime ? new Date(trade.exitTime).toISOString().slice(0, 16) : '';
+                    document.getElementById('editTakeProfit').value = trade.takeProfit || '';
+                    document.getElementById('editStopLoss').value = trade.stopLoss || '';
+                    document.getElementById('editCommission').value = trade.commission || '';
+                    document.getElementById('editProfit').value = trade.profit || '';
+                    document.getElementById('editStatus').value = trade.status || '';
+                    document.getElementById('editNotes').value = trade.notes || '';
+                    
+                    document.getElementById('editModal').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ошибка при загрузке данных сделки');
+                });
+        }
+
+        function deleteTrade(tradeId) {
+            if (confirm('Вы уверены, что хотите удалить эту сделку? Это действие нельзя отменить.')) {
+                fetch(`/api/trades/${tradeId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        alert('Сделка успешно удалена!');
+                        location.reload();
+                    } else {
+                        alert('Ошибка при удалении сделки');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ошибка при отправке запроса');
+                });
+            }
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        // Закрытие модального окна при клике на X
+        document.querySelector('.close').addEventListener('click', closeEditModal);
+
+        // Закрытие модального окна при клике вне его
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('editModal');
+            if (event.target === modal) {
+                closeEditModal();
+            }
+        });
+
+        // Сохранение изменений
+        document.getElementById('editForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const tradeId = document.getElementById('editTradeId').value;
+            const updateData = {};
+            
+            const exitPrice = document.getElementById('editExitPrice').value;
+            if (exitPrice) updateData.exitPrice = parseFloat(exitPrice);
+            
+            const exitTime = document.getElementById('editExitTime').value;
+            if (exitTime) updateData.exitTime = exitTime;
+            
+            const takeProfit = document.getElementById('editTakeProfit').value;
+            if (takeProfit) updateData.takeProfit = parseFloat(takeProfit);
+            
+            const stopLoss = document.getElementById('editStopLoss').value;
+            if (stopLoss) updateData.stopLoss = parseFloat(stopLoss);
+            
+            const commission = document.getElementById('editCommission').value;
+            if (commission) updateData.commission = parseFloat(commission);
+            
+            const profit = document.getElementById('editProfit').value;
+            if (profit) updateData.profit = parseFloat(profit);
+            
+            const status = document.getElementById('editStatus').value;
+            if (status) updateData.status = status;
+            
+            const notes = document.getElementById('editNotes').value;
+            if (notes) updateData.notes = notes;
+            
+            try {
+                const response = await fetch(`/api/trades/${tradeId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updateData)
+                });
+                
+                if (response.ok) {
+                    alert('Сделка успешно обновлена!');
+                    location.reload();
+                } else {
+                    alert('Ошибка при обновлении сделки');
                 }
             } catch (error) {
                 console.error('Error:', error);

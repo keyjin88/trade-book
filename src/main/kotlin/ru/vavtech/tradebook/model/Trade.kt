@@ -8,12 +8,22 @@ data class Trade(
     val symbol: String,
     val side: TradeSide,
     val quantity: BigDecimal,
-    val price: BigDecimal,
+    val entryPrice: BigDecimal,
+    val exitPrice: BigDecimal? = null,
+    val entryTime: LocalDateTime,
+    val exitTime: LocalDateTime? = null,
+    val takeProfit: BigDecimal? = null,
+    val stopLoss: BigDecimal? = null,
     val commission: BigDecimal = BigDecimal.ZERO,
-    val timestamp: LocalDateTime,
+    val profit: BigDecimal? = null,
+    val status: TradeStatus = TradeStatus.OPEN,
     val notes: String = ""
 )
 
 enum class TradeSide {
     BUY, SELL
+}
+
+enum class TradeStatus {
+    OPEN, CLOSED
 } 
