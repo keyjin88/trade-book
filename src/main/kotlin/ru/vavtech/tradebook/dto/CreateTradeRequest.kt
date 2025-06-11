@@ -5,6 +5,7 @@ import java.math.BigDecimal
 import java.time.LocalDateTime
 
 data class CreateTradeRequest(
+    val accountId: String,
     val symbol: String,
     val side: TradeSide,
     val quantity: BigDecimal,

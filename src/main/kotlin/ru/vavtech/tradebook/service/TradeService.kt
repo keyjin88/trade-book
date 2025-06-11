@@ -12,7 +12,7 @@ import java.time.LocalDateTime
 import java.util.*
 
 @Service
-class TradeService {
+class TradeService(private val accountService: AccountService) {
     
     private val dataFile = File("trades.json")
     private val objectMapper: ObjectMapper = jacksonObjectMapper().apply {
@@ -31,7 +31,16 @@ class TradeService {
         }
     }
     
+    fun getTradesByAccount(accountId: String): List<Trade> {
+        return getAllTrades().filter { it.accountId == accountId }
+    }
+    
     fun addTrade(trade: Trade): Trade {
+        // Проверяем, что счет существует
+        if (accountService.getAccount(trade.accountId) == null) {
+            throw IllegalArgumentException("Account with id ${trade.accountId} not found")
+        }
+        
         val trades = getAllTrades().toMutableList()
         val newTrade = trade.copy(
             id = UUID.randomUUID().toString(),
@@ -104,5 +113,27 @@ class TradeService {
         trades.removeAt(tradeIndex)
         saveTrades(trades)
         return true
+    }
+    
+    fun getTradesSummaryByAccount(accountId: String): Map<String, Any> {
+        val trades = getTradesByAccount(accountId)
+        val totalTrades = trades.size
+        val tradesWithProfit = trades.filter { it.profit != null }
+        val profitableTrades = tradesWithProfit.count { it.profit!! > BigDecimal.ZERO }
+        val profitablePercentage = if (tradesWithProfit.isNotEmpty()) {
+            (profitableTrades.toDouble() / tradesWithProfit.size * 100)
+        } else {
+            0.0
+        }
+        val grossProfit = trades.mapNotNull { it.profit }.sumOf { it }
+        val totalCommissions = trades.sumOf { it.commission.abs() }
+        // Всегда вычитаем комиссии из прибыли, независимо от того как их ввели
+        val netProfit = grossProfit - totalCommissions
+        
+        return mapOf(
+            "totalTrades" to totalTrades,
+            "profitablePercentage" to profitablePercentage,
+            "totalProfit" to netProfit
+        )
     }
 } 

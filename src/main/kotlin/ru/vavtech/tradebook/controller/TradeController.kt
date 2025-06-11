@@ -13,8 +13,12 @@ import java.time.LocalDateTime
 class TradeController(private val tradeService: TradeService) {
     
     @GetMapping
-    fun getAllTrades(): List<Trade> {
-        return tradeService.getAllTrades()
+    fun getAllTrades(@RequestParam(required = false) accountId: String?): List<Trade> {
+        return if (accountId != null) {
+            tradeService.getTradesByAccount(accountId)
+        } else {
+            tradeService.getAllTrades()
+        }
     }
     
     @GetMapping("/{id}")
@@ -31,6 +35,7 @@ class TradeController(private val tradeService: TradeService) {
     fun createTrade(@RequestBody request: CreateTradeRequest): ResponseEntity<Trade> {
         val trade = Trade(
             id = "", // будет генерироваться в сервисе
+            accountId = request.accountId,
             symbol = request.symbol,
             side = request.side,
             quantity = request.quantity,

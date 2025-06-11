@@ -188,6 +188,28 @@
         <p>Расширенное управление торговыми операциями</p>
     </div>
 
+    <!-- Управление счетами -->
+    <div class="form-container">
+        <h2>Управление счетами</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="accountSelect">Текущий счет:</label>
+                <select id="accountSelect" onchange="switchAccount()">
+                    <option value="">Выберите счет</option>
+                    <option th:each="account : ${accounts}" 
+                            th:value="${account.id}" 
+                            th:text="${account.name} + ' (' + ${account.broker} + ')'"
+                            th:selected="${account.id == currentAccountId}">
+                        Счет
+                    </option>
+                </select>
+            </div>
+            <div class="form-group">
+                <button type="button" onclick="showCreateAccountModal()">Создать новый счет</button>
+            </div>
+        </div>
+    </div>
+
     <div class="summary">
         <h2>Сводка</h2>
         <div class="summary-stats">
@@ -210,6 +232,7 @@
     <div class="form-container">
         <h2>Добавить новую сделку</h2>
         <form id="tradeForm">
+            <input type="hidden" id="tradeAccountId" name="accountId" th:value="${currentAccountId}">
             <div class="form-row">
                 <div class="form-group">
                     <label for="symbol">Символ:</label>
@@ -281,8 +304,6 @@
                         <th>Количество</th>
                         <th>Вход</th>
                         <th>Время входа</th>
-                        <th>Выход</th>
-                        <th>Время выхода</th>
                         <th>Take Profit</th>
                         <th>Stop Loss</th>
                         <th>Комиссия</th>
@@ -299,8 +320,6 @@
                         <td th:text="${#numbers.formatDecimal(trade.quantity, 1, 2)}"></td>
                         <td th:text="${#numbers.formatDecimal(trade.entryPrice, 1, 5)}"></td>
                         <td th:text="${#temporals.format(trade.entryTime, 'dd.MM.yy HH:mm')}"></td>
-                        <td th:text="${trade.exitPrice != null ? #numbers.formatDecimal(trade.exitPrice, 1, 5) : '-'}"></td>
-                        <td th:text="${trade.exitTime != null ? #temporals.format(trade.exitTime, 'dd.MM.yy HH:mm') : '-'}"></td>
                         <td th:text="${trade.takeProfit != null ? #numbers.formatDecimal(trade.takeProfit, 1, 5) : '-'}"></td>
                         <td th:text="${trade.stopLoss != null ? #numbers.formatDecimal(trade.stopLoss, 1, 5) : '-'}"></td>
                         <td th:text="${#numbers.formatDecimal(trade.commission, 1, 2)}" class="commission"></td>
@@ -384,6 +403,64 @@
         </div>
     </div>
 
+    <!-- Modal для создания счета -->
+    <div id="createAccountModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCreateAccountModal()">&times;</span>
+            <h2>Создать новый счет</h2>
+            <form id="createAccountForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="accountName">Название счета:</label>
+                        <input type="text" id="accountName" required placeholder="Мой торговый счет">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="accountBroker">Брокер:</label>
+                        <input type="text" id="accountBroker" placeholder="Название брокера">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="accountType">Тип счета:</label>
+                        <select id="accountType">
+                            <option value="">Выберите тип</option>
+                            <option value="Demo">Демо</option>
+                            <option value="Real">Реальный</option>
+                            <option value="Contest">Конкурсный</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="accountCurrency">Валюта:</label>
+                        <select id="accountCurrency">
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="RUB">RUB</option>
+                            <option value="GBP">GBP</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="initialBalance">Начальный баланс:</label>
+                        <input type="number" id="initialBalance" step="0.01" placeholder="10000.00">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="accountNotes">Заметки:</label>
+                    <textarea id="accountNotes" rows="2" placeholder="Дополнительная информация"></textarea>
+                </div>
+                
+                <button type="submit" class="save-btn">Создать счет</button>
+                <button type="button" class="cancel-btn" onclick="closeCreateAccountModal()">Отмена</button>
+            </form>
+        </div>
+    </div>
+
     <script>
         // Устанавливаем текущее время по умолчанию
         document.addEventListener('DOMContentLoaded', function() {
@@ -392,12 +469,65 @@
             document.getElementById('entryTime').value = now.toISOString().slice(0, 16);
         });
 
+        // Функции для работы со счетами
+        function switchAccount() {
+            const accountId = document.getElementById('accountSelect').value;
+            if (accountId) {
+                window.location.href = `/?accountId=${accountId}`;
+            }
+        }
+
+        function showCreateAccountModal() {
+            document.getElementById('createAccountModal').style.display = 'block';
+        }
+
+        function closeCreateAccountModal() {
+            document.getElementById('createAccountModal').style.display = 'none';
+        }
+
+        // Создание нового счета
+        document.getElementById('createAccountForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const accountData = {
+                name: formData.get('accountName') || document.getElementById('accountName').value,
+                broker: document.getElementById('accountBroker').value || null,
+                accountType: document.getElementById('accountType').value || null,
+                currency: document.getElementById('accountCurrency').value || 'USD',
+                initialBalance: document.getElementById('initialBalance').value ? parseFloat(document.getElementById('initialBalance').value) : null,
+                notes: document.getElementById('accountNotes').value || null
+            };
+            
+            try {
+                const response = await fetch('/api/accounts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(accountData)
+                });
+                
+                if (response.ok) {
+                    const newAccount = await response.json();
+                    alert('Счет успешно создан!');
+                    window.location.href = `/?accountId=${newAccount.id}`;
+                } else {
+                    alert('Ошибка при создании счета');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ошибка при отправке данных');
+            }
+        });
+
         // Добавление новой сделки
         document.getElementById('tradeForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData(this);
             const tradeData = {
+                accountId: formData.get('accountId'),
                 symbol: formData.get('symbol'),
                 side: formData.get('side'),
                 quantity: parseFloat(formData.get('quantity')),
@@ -408,6 +538,11 @@
                 commission: parseFloat(formData.get('commission') || 0),
                 notes: formData.get('notes') || ''
             };
+            
+            if (!tradeData.accountId) {
+                alert('Необходимо выбрать счет перед добавлением сделки');
+                return;
+            }
             
             try {
                 const response = await fetch('/api/trades', {

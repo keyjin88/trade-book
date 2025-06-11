@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 
 data class Trade(
     val id: String,
+    val accountId: String,
     val symbol: String,
     val side: TradeSide,
     val quantity: BigDecimal,
